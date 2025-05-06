@@ -1,77 +1,86 @@
-// apps/auth/src/main.ts
-import express from 'express';
-// import { setupRoutes } from './routes';
-import { errorHandler } from '../../../shared/utils/errorController';
+import express, { type NextFunction } from 'express';
+import { errorHandler } from '@shared/utils/errorController';
 import dotenv from 'dotenv';
 import path from 'path';
-import { config } from '@shared/config/environment';
 import { logger } from '@shared/utils/logger';
-// import '../db'
-import {  RabbitMQService } from '@shared/events';
-import type { NotificationPayload } from './interfaces/notification.interface';
-import EVENTS, { QUEUES } from '@shared/events/queues';
-import { EXCHANGES } from '@shared/events/exchanges';
-import Email from '@shared/utils/email';
-import { ACCEPTED_OTP_TYPES, OtpType } from '@shared/constants/otp-codes';
+import { RabbitMQService, initializeRabbitMQ } from '@shared/events';
+import { NotificationConsumer } from './events/consumers/notification.consumers';
+import { NotificationService } from './services/notification.service';
+import { NotificationController } from './controllers/notification.controller';
+import type { IReq, IRes } from '@shared/types/config';
+import { getPortFromUrl } from '@shared/utils/get-ports-from-url';
 
-
+// Load environment variables
 const envPath = path.resolve(__dirname, '../../../.env');
 const overrideEnvPath = path.resolve(__dirname, '../.env');
 dotenv.config({ path: envPath });
 dotenv.config({ path: overrideEnvPath, override: true });
 dotenv.config();
+
 async function bootstrap() {
-  const app = express();
-  const port = process.env.PORT || 3003;
+  try {
+    // Initialize Express app
+    const app = express();
+    const port = getPortFromUrl(process.env.NOTIFICATIONS_SERVICE_URL as string) || process.env.PORT || 3003;
 
-  // Basic middleware
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+    // Basic middleware
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
 
-  // Health check
-  app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', service: 'auth' });
-  });
+    // Implement request logger middleware
+    app.use((req: IReq, res: IRes, next: NextFunction) => {
+      logger.info(`[NOTIFICATION-REQUEST] ${req.method} ${req.url}`);
+      next();
+    });
 
-  // Error handling
-  app.use(errorHandler);
+    // Initialize RabbitMQ
+    logger.info('Initializing RabbitMQ...');
+    await initializeRabbitMQ();
+    logger.info('RabbitMQ initialized successfully');
 
+    // Set up notification consumers
+    logger.info('Setting up notification consumers...');
+    const notificationConsumer = new NotificationConsumer();
+    await notificationConsumer.setupConsumers();
+    logger.info('Notification consumers set up successfully');
 
-  RabbitMQService.getInstance().subscribeToEvents<EmailVerificationNotificationSchema>('notificaition-welcome-email-listener', EXCHANGES.NOTIFICATION, QUEUES.NOTIFICATION_EMAIL, async (msg) => {
-    try {
+    // Create notification service instance
+    const notificationService = new NotificationService();
+    
+    // Initialize and register the notification controller
+    const rabbitMQService = RabbitMQService.getInstance();
+    const notificationController = new NotificationController(notificationService, rabbitMQService);
+    
+    // Register controller routes
+    app.use('/api/notifications', notificationController.getRouter());
 
-         // Send OTP via email
-         if(ACCEPTED_OTP_TYPES.includes(msg.data.otpType)){
-          await new Email({ email: msg.recipient }, { passcode: msg.data.code, otpPurpose: msg.data.otpType }).sendEmailOtp();
-         }
+    // Health check endpoint
+    app.get('/health', (req: IReq, res: IRes) => {
+      res.json({ status: 'healthy', service: 'notifications' });
+    });
 
-        console.log("NOTIFICATION EMAIL LISTENER - Received notification events", msg);
-      // await new NotificationProducer().produceNotificationEvent(payload.templateId, payload.recipient, payload.data);
-    } catch (error:any) {
-      logger.error(`Error processing notification event: ${error.message}`);
-    }
-  },     {
-  
-  });
+    // Error handling middleware (must be after routes)
+    app.use(errorHandler);
 
-  // Start server
-  app.listen(port, () => {
-    logger.info(`[SERVICE] : Notifications service running on port ${port}`);
-  });
+    // Start server
+    app.listen(port, () => {
+      logger.info(`[SERVICE] : Notifications service running on port ${port}`);
+    });
 
-  // Implement request logger
-  app.use((req, res, next) => {
-    logger.info(`[AUTH-REQUEST] ${req.method} ${req.url}`);
-    next();
-  });
-
-  // Handle graceful shutdown
-  process.on('SIGINT', async () => {
-    console.log('Shutting down Auth service...');
-    process.exit(0);
-  });
+    // Handle graceful shutdown
+    process.on('SIGINT', async () => {
+      logger.info('Shutting down Notifications service...');
+      await rabbitMQService.closeConnection();
+      process.exit(0);
+    });
+  } catch (error) {
+    logger.error('Failed to start Notifications service:', error);
+    process.exit(1);
+  }
 }
 
-bootstrap().catch(console.error);
-
-
+// Start the application
+bootstrap().catch(error => {
+  logger.error('Unhandled error during bootstrap:', error);
+  process.exit(1);
+});

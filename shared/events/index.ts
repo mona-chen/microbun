@@ -3,7 +3,7 @@ import amqp, { type Channel, type Connection, type ChannelModel } from 'amqplib'
 import { EventEmitter } from 'events';
 import { config } from '../../shared/config/environment';
 import { logger } from '@shared/utils/logger';
-import { ExchangeConfig, EXCHANGES } from './exchanges';
+import { ExchangeConfig, EXCHANGES, EXCHANGE_TYPES, type Exchange, type ExchangeType } from './exchanges';
 import setupQueues from './setupQueues';
 
 export class RabbitMQService {
@@ -115,10 +115,11 @@ export class RabbitMQService {
     try {
       logger.info('Setting up exchanges...');
       for (const exchange of Object.values(EXCHANGES)) {
-        logger.debug(`Asserting exchange: ${exchange}`);
+        const exchangeType = ExchangeConfig[exchange as Exchange];
+        logger.debug(`Asserting exchange: ${exchange} (type: ${exchangeType})`);
         await this.channel.assertExchange(
           exchange, 
-          ExchangeConfig[exchange as keyof typeof ExchangeConfig], 
+          exchangeType, 
           { durable: true }
         );
         logger.debug(`Exchange ${exchange} asserted successfully`);
@@ -139,7 +140,6 @@ export class RabbitMQService {
     }
 
     setupQueues.call(this);
-    
   }
 
   /**
@@ -234,11 +234,20 @@ export class RabbitMQService {
       const q = await ch.assertQueue(queueName, queueOptions);
       logger.debug(`Queue asserted: ${queueName}`);
 
-      // Bind the queue to the exchange with the routing pattern
-      logger.debug(`Binding queue ${queueName} to exchange ${exchange} with pattern ${routingPattern}`);
-      await ch.bindQueue(q.queue, exchange, routingPattern);
-      logger.debug(`Queue bound: ${queueName}`);
+      // Get the exchange type
+      const exchangeType = ExchangeConfig[exchange as Exchange];
 
+      // Bind the queue to the exchange with the appropriate routing pattern
+      // For fanout exchanges, the routing key is ignored
+      if (exchangeType === EXCHANGE_TYPES.FANOUT) {
+        logger.debug(`Binding queue ${queueName} to fanout exchange ${exchange}`);
+        await ch.bindQueue(q.queue, exchange, '');
+      } else {
+        logger.debug(`Binding queue ${queueName} to exchange ${exchange} with pattern ${routingPattern}`);
+        await ch.bindQueue(q.queue, exchange, routingPattern);
+      }
+      
+      logger.debug(`Queue bound: ${queueName}`);
       logger.info(`Queue ${queueName} created and bound successfully`);
       return q;
     } catch (error) {
@@ -274,6 +283,7 @@ export class RabbitMQService {
   ): Promise<boolean> {
     try {
       const ch = await this.getChannel();
+      const exchangeType = ExchangeConfig[exchange as Exchange];
 
       // Add metadata to the message
       const enhancedMessage = {
@@ -293,10 +303,13 @@ export class RabbitMQService {
         ...options,
       };
 
-      logger.debug(`Publishing event to ${exchange}/${routingKey}`);
+      // For fanout exchanges, the routing key is ignored
+      const effectiveRoutingKey = exchangeType === EXCHANGE_TYPES.FANOUT ? '' : routingKey;
+      
+      logger.debug(`Publishing event to ${exchange}/${effectiveRoutingKey} (${exchangeType})`);
       return ch.publish(
         exchange,
-        routingKey,
+        effectiveRoutingKey,
         Buffer.from(JSON.stringify(enhancedMessage)),
         defaultOptions,
       );
@@ -304,6 +317,42 @@ export class RabbitMQService {
       logger.error(`Error publishing event to ${exchange}/${routingKey}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Publish to a fanout exchange (broadcast to all bound queues)
+   */
+  public async publishBroadcast(
+    exchange: string,
+    message: any,
+    options: amqp.Options.Publish = {},
+  ): Promise<boolean> {
+    // Verify this is a fanout exchange
+    const exchangeType = ExchangeConfig[exchange as Exchange];
+    if (exchangeType !== EXCHANGE_TYPES.FANOUT) {
+      throw new Error(`Exchange ${exchange} is not a fanout exchange`);
+    }
+    
+    // For fanout exchanges, routing key is ignored
+    return this.publishEvent(exchange, '', message, options);
+  }
+
+  /**
+   * Publish to a direct exchange (exact routing key matching)
+   */
+  public async publishDirect(
+    exchange: string,
+    routingKey: string,
+    message: any,
+    options: amqp.Options.Publish = {},
+  ): Promise<boolean> {
+    // Verify this is a direct exchange
+    const exchangeType = ExchangeConfig[exchange as Exchange];
+    if (exchangeType !== EXCHANGE_TYPES.DIRECT) {
+      throw new Error(`Exchange ${exchange} is not a direct exchange`);
+    }
+    
+    return this.publishEvent(exchange, routingKey, message, options);
   }
 
   /**
@@ -317,7 +366,8 @@ export class RabbitMQService {
     options: amqp.Options.Consume = {},
   ): Promise<amqp.Replies.Consume> {
     try {
-      logger.info(`Subscribing to events on ${queueName} (${exchange}/${routingPattern})`);
+      const exchangeType = ExchangeConfig[exchange as Exchange];
+      logger.info(`Subscribing to events on ${queueName} (${exchange}/${routingPattern}) [${exchangeType}]`);
       const ch = await this.getChannel();
 
       // Create the queue and bind it
@@ -376,6 +426,44 @@ export class RabbitMQService {
       logger.error(`Error subscribing to ${exchange}/${routingPattern}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Subscribe to a fanout exchange (broadcast)
+   */
+  public async subscribeToBroadcast<T>(
+    queueName: string,
+    exchange: string,
+    handler: (message: T) => Promise<void>,
+    options: amqp.Options.Consume = {},
+  ): Promise<amqp.Replies.Consume> {
+    // Verify this is a fanout exchange
+    const exchangeType = ExchangeConfig[exchange as Exchange];
+    if (exchangeType !== EXCHANGE_TYPES.FANOUT) {
+      throw new Error(`Exchange ${exchange} is not a fanout exchange`);
+    }
+    
+    // For fanout exchanges, routing pattern is ignored
+    return this.subscribeToEvents(queueName, exchange, '', handler, options);
+  }
+
+  /**
+   * Subscribe to a direct exchange (exact routing key matching)
+   */
+  public async subscribeToDirect<T>(
+    queueName: string,
+    exchange: string,
+    routingKey: string,
+    handler: (message: T) => Promise<void>,
+    options: amqp.Options.Consume = {},
+  ): Promise<amqp.Replies.Consume> {
+    // Verify this is a direct exchange
+    const exchangeType = ExchangeConfig[exchange as Exchange];
+    if (exchangeType !== EXCHANGE_TYPES.DIRECT) {
+      throw new Error(`Exchange ${exchange} is not a direct exchange`);
+    }
+    
+    return this.subscribeToEvents(queueName, exchange, routingKey, handler, options);
   }
 
   /**
@@ -511,17 +599,65 @@ export async function publishEvent(
   return singletonInstance.publishEvent(exchange, routingKey, message, options);
 }
 
-export async function subscribeToEvents(
+export async function publishBroadcast(
+  exchange: string,
+  message: any,
+  options: amqp.Options.Publish = {},
+): Promise<boolean> {
+  if (!singletonInstance) {
+    singletonInstance = RabbitMQService.getInstance();
+  }
+  return singletonInstance.publishBroadcast(exchange, message, options);
+}
+
+export async function publishDirect(
+  exchange: string,
+  routingKey: string,
+  message: any,
+  options: amqp.Options.Publish = {},
+): Promise<boolean> {
+  if (!singletonInstance) {
+    singletonInstance = RabbitMQService.getInstance();
+  }
+  return singletonInstance.publishDirect(exchange, routingKey, message, options);
+}
+
+export async function subscribeToEvents<T>(
   queueName: string,
   exchange: string,
   routingPattern: string,
-  handler: (message: any) => Promise<void>,
+  handler: (message: T) => Promise<void>,
   options: amqp.Options.Consume = {},
 ): Promise<amqp.Replies.Consume> {
   if (!singletonInstance) {
     singletonInstance = RabbitMQService.getInstance();
   }
   return singletonInstance.subscribeToEvents(queueName, exchange, routingPattern, handler, options);
+}
+
+export async function subscribeToBroadcast<T>(
+  queueName: string,
+  exchange: string,
+  handler: (message: T) => Promise<void>,
+  options: amqp.Options.Consume = {},
+): Promise<amqp.Replies.Consume> {
+  if (!singletonInstance) {
+    singletonInstance = RabbitMQService.getInstance();
+  }
+  return singletonInstance.subscribeToBroadcast(queueName, exchange, handler, options);
+}
+
+export async function subscribeToDirect<T>(
+  queueName: string,
+  exchange: string,
+  routingKey: string,
+  handler: (message: T) => Promise<void>,
+  options: amqp.Options.Consume = {},
+): Promise<amqp.Replies.Consume> {
+  if (!singletonInstance) {
+    singletonInstance = RabbitMQService.getInstance();
+  }
+  return singletonInstance.subscribeToDirect(queueName, exchange, routingKey, handler, options);
 }
 
 export async function closeConnection(): Promise<void> {

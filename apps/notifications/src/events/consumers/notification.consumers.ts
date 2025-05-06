@@ -1,121 +1,252 @@
 import { NotificationService } from '../../services/notification.service';
-import type { NotificationPayload } from '../../interfaces/notification.interface';
+import type { 
+  NotificationPayload, 
+  NotificationRecord,
+  PushNotificationPayload
+} from '../../interfaces/notification.interface';
 import { logger } from '@shared/utils/logger';
-import { RabbitMQService } from '@shared/events';
-import EVENTS, { QUEUES } from '@shared/events/queues';
+import { 
+  RabbitMQService, 
+  subscribeToEvents, 
+  subscribeToBroadcast, 
+  subscribeToDirect 
+} from '@shared/events';
 import { EXCHANGES } from '@shared/events/exchanges';
-import { NOTIFICATION_TEMPLATES } from '../../config/novu.config';
+import notificationQueues from '@shared/events/queues/notification.queue';
+import { NOTIFICATION_TYPES, NOTIFICATION_STATUS } from '@shared/constants/notifications';
 
+/**
+ * Notification consumer for handling notification events from RabbitMQ
+ */
 export class NotificationConsumer {
   private notificationService = new NotificationService();
   private rabbitMQService = RabbitMQService.getInstance();
 
-  async setupConsumers() {
+  /**
+   * Set up all notification consumers
+   */
+  async setupConsumers(): Promise<void> {
     try {
-      // Email notification consumer
-      await this.rabbitMQService.subscribeToEvents(
-        'notification-email-queue',
-        EXCHANGES.NOTIFICATION,
-        QUEUES.NOTIFICATION_EMAIL,
-        async (message: NotificationPayload) => {
-          try {
-            // Send notification via service
-            const result = await this.notificationService.sendNotification(message);
-
-            // Optional: Handle failed notifications
-            if (result.status === 'failed') {
-              // Log the failure or implement retry mechanism
-              logger.error('Notification send failed', { 
-                payload: message, 
-                result 
-              });
-
-              // Optionally publish to a dead letter or retry queue
-              await this.rabbitMQService.publishEvent(
-                EXCHANGES.DEAD_LETTER, 
-                'notification.failed', 
-                { 
-                  originalPayload: message, 
-                  failureReason: result 
-                }
-              );
-            }
-          } catch (error) {
-            logger.error('Failed to process notification', { 
-              error, 
-              payload: message 
-            });
-
-            // Throw to trigger RabbitMQ's error handling (will nack the message)
-            throw error;
-          }
-        }
-      );
-
-      // Wallet events consumer
-      await this.rabbitMQService.subscribeToEvents(
-        'wallet-notification-queue',
-        EXCHANGES.WALLET,
-        '*', // Subscribe to all wallet events
-        async (message: any) => {
-          try {
-            // Map wallet events to notification templates
-            let templateId: keyof typeof NOTIFICATION_TEMPLATES | undefined;
-            
-            switch (message.type) {
-              case QUEUES.WALLET_CREATED:
-                templateId = 'WALLET_CREATED';
-                break;
-              case QUEUES.TRANSFER_COMPLETED:
-                templateId = 'TRANSFER_COMPLETED';
-                break;
-              case QUEUES.WITHDRAWAL_COMPLETED:
-                templateId = 'WITHDRAWAL_COMPLETED';
-                break;
-              case QUEUES.DEPOSIT_COMPLETED:
-                templateId = 'DEPOSIT_COMPLETED';
-                break;
-            }
-            
-            if (templateId) {
-              // Send notification via service
-              const result = await this.notificationService.sendNotification({
-                templateId,
-                recipient: message.recipient,
-                data: message.data
-              });
-              
-              if (result.status === 'failed') {
-                logger.error('Wallet notification send failed', { 
-                  payload: message, 
-                  result 
-                });
-                
-                await this.rabbitMQService.publishEvent(
-                  EXCHANGES.DEAD_LETTER, 
-                  'wallet.notification.failed', 
-                  { 
-                    originalPayload: message, 
-                    failureReason: result 
-                  }
-                );
-              }
-            }
-          } catch (error) {
-            logger.error('Failed to process wallet notification', { 
-              error, 
-              payload: message 
-            });
-            
-            throw error;
-          }
-        }
-      );
-
-      logger.info('Notification consumers setup complete');
+      logger.info('Setting up notification consumers...');
+      
+      // Set up topic exchange consumers (channel-specific)
+      await this.setupTopicConsumers();
+      
+      // Set up fanout exchange consumers (broadcast)
+      await this.setupBroadcastConsumers();
+      
+      // Set up direct exchange consumers (targeted)
+      await this.setupDirectConsumers();
+      
+      logger.info('All notification consumers set up successfully');
     } catch (error) {
-      logger.error('Failed to setup notification consumers', error);
+      logger.error('Failed to set up notification consumers', error);
       throw error;
     }
+  }
+
+  /**
+   * Set up topic exchange consumers for channel-specific notifications
+   */
+  private async setupTopicConsumers(): Promise<void> {
+    try {
+      // Email notifications
+      await subscribeToEvents<NotificationRecord>(
+        'notification-email-consumer',
+        EXCHANGES.NOTIFICATION,
+        notificationQueues.NOTIFICATION_EMAIL,
+        async (message) => {
+          try {
+            logger.info('Processing email notification', { 
+              recipient: message.notificationOwner,
+              type: message.type
+            });
+            
+            // Process the notification
+            await this.notificationService.createNotification(message);
+          } catch (error) {
+            logger.error('Error processing email notification', error);
+            throw error;
+          }
+        }
+      );
+      
+      // Push notifications
+      await subscribeToEvents<NotificationRecord>(
+        'notification-push-consumer',
+        EXCHANGES.NOTIFICATION,
+        notificationQueues.NOTIFICATION_PUSH,
+        async (message) => {
+          try {
+            logger.info('Processing push notification', { 
+              recipient: message.notificationOwner,
+              type: message.type
+            });
+            
+            // Get user's push token (this would typically come from a user service)
+            const pushToken = await this.getUserPushToken(message.notificationOwner);
+            
+            if (pushToken && message.pushNotificationBody) {
+              // Send push notification
+              await this.notificationService.sendPushNotification({
+                to: pushToken,
+                title: message.title,
+                body: message.pushNotificationBody,
+                link: message.link,
+                image: message.image,
+                otherData: message.otherData
+              });
+            }
+          } catch (error) {
+            logger.error('Error processing push notification', error);
+            throw error;
+          }
+        }
+      );
+      
+      // SMS notifications
+      await subscribeToEvents<NotificationRecord>(
+        'notification-sms-consumer',
+        EXCHANGES.NOTIFICATION,
+        notificationQueues.NOTIFICATION_SMS,
+        async (message) => {
+          try {
+            logger.info('Processing SMS notification', { 
+              recipient: message.notificationOwner,
+              type: message.type
+            });
+            
+            // Process the notification (SMS implementation would go here)
+            await this.notificationService.createNotification(message);
+          } catch (error) {
+            logger.error('Error processing SMS notification', error);
+            throw error;
+          }
+        }
+      );
+      
+      // In-app notifications
+      await subscribeToEvents<NotificationRecord>(
+        'notification-in-app-consumer',
+        EXCHANGES.NOTIFICATION,
+        notificationQueues.NOTIFICATION_IN_APP,
+        async (message) => {
+          try {
+            logger.info('Processing in-app notification', { 
+              recipient: message.notificationOwner,
+              type: message.type
+            });
+            
+            // Process the notification (in-app implementation would go here)
+            await this.notificationService.createNotification(message);
+          } catch (error) {
+            logger.error('Error processing in-app notification', error);
+            throw error;
+          }
+        }
+      );
+      
+      logger.info('Topic exchange consumers set up successfully');
+    } catch (error) {
+      logger.error('Error setting up topic exchange consumers', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set up fanout exchange consumers for broadcast notifications
+   */
+  private async setupBroadcastConsumers(): Promise<void> {
+    try {
+      // System broadcast notifications
+      await subscribeToBroadcast<NotificationRecord>(
+        'notification-broadcast-consumer',
+        EXCHANGES.NOTIFICATION_BROADCAST,
+        async (message) => {
+          try {
+            logger.info('Processing broadcast notification', { 
+              type: message.type
+            });
+            
+            // Process the broadcast notification
+            // This would typically involve sending to all users
+            // For now, we'll just log it
+            logger.info('Broadcast notification received', message);
+          } catch (error) {
+            logger.error('Error processing broadcast notification', error);
+            throw error;
+          }
+        }
+      );
+      
+      logger.info('Fanout exchange consumers set up successfully');
+    } catch (error) {
+      logger.error('Error setting up fanout exchange consumers', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set up direct exchange consumers for targeted notifications
+   */
+  private async setupDirectConsumers(): Promise<void> {
+    try {
+      // User-specific notifications
+      await subscribeToDirect<NotificationRecord>(
+        'notification-direct-user-consumer',
+        EXCHANGES.NOTIFICATION_DIRECT,
+        notificationQueues.NOTIFICATION_DIRECT_USER,
+        async (message) => {
+          try {
+            logger.info('Processing direct user notification', { 
+              recipient: message.notificationOwner,
+              type: message.type
+            });
+            
+            // Process the direct notification
+            await this.notificationService.createNotification(message);
+          } catch (error) {
+            logger.error('Error processing direct user notification', error);
+            throw error;
+          }
+        }
+      );
+      
+      // Admin notifications
+      await subscribeToDirect<NotificationRecord>(
+        'notification-direct-admin-consumer',
+        EXCHANGES.NOTIFICATION_DIRECT,
+        notificationQueues.NOTIFICATION_DIRECT_ADMIN,
+        async (message) => {
+          try {
+            logger.info('Processing direct admin notification', { 
+              recipient: message.notificationOwner,
+              type: message.type
+            });
+            
+            // Process the direct notification
+            await this.notificationService.createNotification(message);
+          } catch (error) {
+            logger.error('Error processing direct admin notification', error);
+            throw error;
+          }
+        }
+      );
+      
+      logger.info('Direct exchange consumers set up successfully');
+    } catch (error) {
+      logger.error('Error setting up direct exchange consumers', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user's push token
+   * This would typically come from a user service
+   */
+  private async getUserPushToken(userId: string): Promise<string | null> {
+    // This would typically query a user service
+    // For now, we'll return null
+    return null;
   }
 }
