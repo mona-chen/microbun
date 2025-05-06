@@ -1,0 +1,29 @@
+version: '3'
+
+services:
+  carcall-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    ports:
+      - "${PORT}:${PORT}"
+    command: bun run start
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - RABBITMQ_SERVICE_URL=${RABBITMQ_SERVICE_URL}
+      - PRODUCTION_DATABASE_URL=${PRODUCTION_DATABASE_URL}
+      - PRODUCTION_DB_SSL=${PRODUCTION_DB_SSL}
+      - DEVELOPMENT_DATABASE_URL=${DEVELOPMENT_DATABASE_URL}
+      - TEST_DATABASE_URL=${TEST_DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_COOKIE_EXPIRES_IN=${JWT_COOKIE_EXPIRES_IN}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - WALLET_SERVICE_URL=${WALLET_SERVICE_URL}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - FROM_NAME=${FROM_NAME}
+      - SMTP_PORT=${SMTP_PORT}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}

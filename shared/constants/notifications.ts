@@ -1,0 +1,3 @@
+export const NOTIFICATION_TYPES = {
+    WELCOME_EMAIL: 'WELCOME_EMAIL',
+};

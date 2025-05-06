@@ -1,0 +1,55 @@
+project-root/
+├── apps/                       # Microservices
+│   ├── api/                    # API Gateway
+│   │   ├── src/
+│   │   │   ├── middleware/     # API Gateway middleware
+│   │   │   ├── routes/         # Route definitions
+│   │   │   ├── proxy/          # Service proxy configurations
+│   │   │   ├── events/         # Event handlers
+│   │   │   └── main.ts         # Entry point
+│   │   └── package.json
+│   │
+│   ├── auth/                   # Auth service
+│   │   ├── src/
+│   │   │   ├── controllers/    # Request handlers
+│   │   │   ├── models/         # Data models
+│   │   │   ├── services/       # Business logic
+│   │   │   ├── events/         # Event producers/consumers
+│   │   │   ├── middleware/     # Service-specific middleware
+│   │   │   └── main.ts         # Entry point
+│   │   └── package.json
+│   │
+│   ├── [other services like payments, 
+        business, compliance, notifications, wallet...]   # Same structure as auth
+│   │
+│   └── service-registry/       # Service discovery
+│       ├── src/
+│       └── package.json
+│
+├── shared/                     # Shared code
+│   ├── config/                 # Configuration
+│   ├── events/                 # Event definitions and utilities
+│   │   ├── producers/          # Event producer utilities
+│   │   ├── consumers/          # Event consumer utilities
+│   │   ├── schemas/            # Event schemas
+│   │   └── index.ts            # Entry point
+│   ├── models/                 # Shared data models
+│   ├── utils/                  # Utility functions
+│   └── package.json
+│
+├── infrastructure/             # Infrastructure code
+│   ├── docker/                 # Docker configurations
+│   │   ├── development/        # Dev environment
+│   │   └── production/         # Production environment
+│   ├── kubernetes/             # K8s configurations (if used)
+│   ├── rabbitmq/               # RabbitMQ configurations
+│   └── monitoring/             # Monitoring configurations
+│
+├── database/                   # Database migrations and seeds
+│   ├── migrations/             # Database migrations
+│   └── seeds/                  # Database seeds
+│
+└── docs/                       # Documentation
+    ├── architecture/           # Architecture diagrams
+    ├── api/                    # API documentation
+    └── events/                 # Events documentation

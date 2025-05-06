@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  hunt-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=development
+      - RABBITMQ_SERVICE_URL=amqp://admin:admin@127.10.0.1:5672/
+      - REDIS_URL=redis://redis:6379
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    container_name: hunt-api
+    ports:
+      - '4000:4889'
+    command: sh -c "bun run migrate:all || true && bun run start"
+    restart: on-failure
+    networks:
+      - hunt_net
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    command: >
+      redis-server 
+      --port 6379 
+      --appendonly yes
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - hunt_redis:/data
+    ports:
+      - ${REDIS_PORT:-6378}:6379
+    networks:
+      - hunt_net
+
+volumes:
+  hunt_api:
+  hunt_redis:
+
+networks:
+  hunt_net:
+    driver: bridge

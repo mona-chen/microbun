@@ -1,0 +1,37 @@
+# Dependency directories
+node_modules
+.npm
+npm-debug.log
+
+# Build output
+dist
+build
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Version control
+.git
+.gitignore
+
+# Logs
+logs
+*.log
+
+# Testing
+coverage
+*.test.ts
+*.spec.ts
+
+# Development
+.DS_Store
+.vscode
+.idea
+
+# Temporary files
+tmp
+temp

@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s  # Adjust the interval as needed
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Monitor Prometheus itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Monitor RabbitMQ
+  - job_name: "rabbitmq"
+    static_configs:
+      - targets: ["rabbitmq:15692"]  # RabbitMQ Prometheus metrics endpoint
+
+  # Monitor Node.js app
+  # - job_name: "nodejs_app"
+  #   static_configs:
+  #     - targets: ["nodejs_app:3000"]  # Change to the port where your app exposes metrics

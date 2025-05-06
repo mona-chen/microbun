@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      /* Add your CSS styles here */
+    </style>
+  </head>
+  <body>
+    <%- include('./partials/header.ejs') %>
+
+    <div class="content">
+      <h2>Booking Successful</h2>
+      <p>Hello <%= firstName %>,</p>
+
+      <p>
+        We're excited to inform you that your booking for the <%= url.tourName
+        %> tour has been successfully confirmed!
+      </p>
+
+      <h3>Booking Details:</h3>
+      <ul>
+        <li>Tour: <%= url.tourName %></li>
+        <li>Date: <%= url.tourDate %></li>
+        <li>Price: $<%= url.tourPrice %></li>
+        <li>Payment Method: <%= url.paymentMethod %></li>
+      </ul>
+
+      <p>
+        Please make sure to arrive at the meeting point at least 15 minutes
+        before the tour starts. If you have any questions or need further
+        assistance, feel free to contact us at hello@carcall.com or +4178343434.
+      </p>
+
+      <p>We wish you an unforgettable experience on the tour!</p>
+    </div>
+    <%- include('./partials/footer.ejs') %>
+  </body>
+</html>

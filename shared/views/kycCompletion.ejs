@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <%- include('./partials/header.ejs') %>
+
+  <body>
+    <table class="body" role="presentation" border="0" cellpadding="0" cellspacing="0">
+      <tbody>
+        <tr>
+          <td></td>
+          <td class="container">
+            <div class="content">
+              <table class="main" role="presentation">
+                <tbody>
+                  <tr>
+                    <td class="wrapper">
+                      <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                        <tbody>
+                          <tr>
+                            <td>
+                              <div>
+                                <p>Hi <%= firstName %>,</p>
+                                <p>
+                                  Great news! Your KYC verification has been successfully completed. Your account is now fully verified 
+                                  and you have access to all our services.
+                                </p>
+                                <p>
+                                  Here's what you can do now:
+                                </p>
+                                <ul>
+                                  <li>Access your wallet</li>
+                                  <li>Make transactions</li>
+                                  <li>Use all platform features</li>
+                                </ul>
+                                <p>
+                                  If you have any questions or need assistance, please don't hesitate to contact our support team.
+                                </p>
+                                <p>
+                                  Best regards,<br />
+                                  The Hunt Finance Team
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+
+  <%- include('./partials/footer.ejs') %>
+</html> 

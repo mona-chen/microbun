@@ -1,0 +1,32 @@
+{
+  "name": "@apps/service-registry",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build --target=node ./src/main.ts --outfile=./dist/main.js",
+    "clean": "rimraf dist",
+    "start": "NODE_ENV=production bun run dist/main.js",
+    "start:dev": "bun run --watch src/main.ts",
+    "test": "bun test",
+    "lint": "eslint \"src/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.{ts,json,md}\""
+  },
+  "dependencies": {
+   
+    "bcryptjs": "^2.4.3",
+"express": "^4.18.2",
+"express-validator": "^7.0.1",
+"cors": "^2.8.5",
+"helmet": "^7.1.0",
+"morgan": "^1.10.0",
+"compression": "^1.7.4",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/pg": "^8.10.9"
+  }
+}

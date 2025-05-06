@@ -1,0 +1,28 @@
+# Use Bun's official image based on Alpine
+FROM oven/bun:alpine
+
+# Install Redis
+RUN apk add --no-cache redis
+
+# Create app user
+RUN addgroup app && adduser -S -G app app
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files and install
+COPY package.json bun.lockb ./
+RUN bun ci
+
+# Copy the rest of the code
+COPY . .
+
+# Build the project
+RUN bun run build
+
+# Expose ports for both the app and Redis
+ENV PORT=${PORT:-3000}
+EXPOSE ${PORT} 6379
+
+# Run Redis in the background with proper configuration, then start the app
+CMD sh -c "redis-server --daemonize yes --bind 0.0.0.0 && bun run start"

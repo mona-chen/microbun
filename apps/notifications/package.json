@@ -1,0 +1,34 @@
+{
+  "name": "@apps/notifications",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build --target=node ./src/main.ts --outfile=./dist/main.js",
+    "clean": "rimraf dist",
+    "start": "NODE_ENV=production bun run dist/main.js",
+    "start:dev": "bun run --watch src/main.ts",
+    "test": "bun test",
+    "lint": "eslint \"src/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.{ts,json,md}\""
+  },
+  "dependencies": {
+    "@novu/node": "^2.6.6",
+   
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "nodemailer": "^6.10.0",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/pg": "^8.10.9"
+  }
+}
