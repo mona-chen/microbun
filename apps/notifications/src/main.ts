@@ -9,6 +9,7 @@ import { NotificationService } from './services/notification.service';
 import { NotificationController } from './controllers/notification.controller';
 import type { IReq, IRes } from '@shared/types/config';
 import { getPortFromUrl } from '@shared/utils/get-ports-from-url';
+import { appConfig } from '@shared/config/environment';
 
 // Load environment variables
 const envPath = path.resolve(__dirname, '../../../.env');
@@ -21,7 +22,7 @@ async function bootstrap() {
   try {
     // Initialize Express app
     const app = express();
-    const port = getPortFromUrl(process.env.NOTIFICATIONS_SERVICE_URL as string) || process.env.PORT || 3003;
+    const port = getPortFromUrl(appConfig.NOTIFICATIONS_SERVICE_URL as string) || process.env.PORT || 3003;
 
     // Basic middleware
     app.use(express.json());

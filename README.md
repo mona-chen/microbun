@@ -42,7 +42,7 @@ A flexible, extensible microservice boilerplate built with Bun/Node.js, Express,
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/microbun.git
+   git clone https://github.com/mona-chen/microbun.git
    cd microbun
    ```
 

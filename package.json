@@ -6,7 +6,7 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/microbun.git"
+    "url": "https://github.com/mona-chen/microbun.git"
   },
   "keywords": [
     "microservices",

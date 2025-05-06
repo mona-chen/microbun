@@ -61,7 +61,7 @@ async function bootstrap() {
     secretAccessKey: process.env.STORAGE_SECRET_KEY! as string,
     bucket: process.env.STORAGE_BUCKET_NAME! as string,
     endpoint: process.env.STORAGE_ENDPOINT! as string,
-    region: process.env.S3_REGION as string,
+    region: process.env.STORAGE_REGION as string,
     acl: 'private',
   });
   
