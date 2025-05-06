@@ -1,8 +1,24 @@
 {
-  "name": "gifti-microservices",
+  "name": "microbun",
   "version": "1.0.0",
+  "description": "A flexible, extensible microservice boilerplate built with Bun/Node.js, Express, and TypeScript",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/microbun.git"
+  },
+  "keywords": [
+    "microservices",
+    "bun",
+    "nodejs",
+    "express",
+    "typescript",
+    "boilerplate",
+    "event-driven"
+  ],
+  "author": "",
+  "license": "MIT",
   "workspaces": [
     "apps/*"
   ],

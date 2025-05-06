@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  hunt-api:
+  microbun-api:
     build:
       context: .
       dockerfile: Dockerfile
@@ -14,13 +14,13 @@ services:
     volumes:
       - ./:/app
       - /app/node_modules
-    container_name: hunt-api
+    container_name: microbun-api
     ports:
       - '4000:4889'
     command: sh -c "bun run migrate:all || true && bun run start"
     restart: on-failure
     networks:
-      - hunt_net
+      - microbun_net
 
   redis:
     image: redis:latest
@@ -35,16 +35,16 @@ services:
       --save 300 10
       --save 60 10000
     volumes:
-      - hunt_redis:/data
+      - microbun_redis:/data
     ports:
       - ${REDIS_PORT:-6378}:6379
     networks:
-      - hunt_net
+      - microbun_net
 
 volumes:
-  hunt_api:
-  hunt_redis:
+  microbun_api:
+  microbun_redis:
 
 networks:
-  hunt_net:
+  microbun_net:
     driver: bridge
